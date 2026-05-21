@@ -1,0 +1,31 @@
+[project]
+name = "vault-agents"
+version = "0.1.0"
+description = "Deep Agents orchestration for proactive vault organization"
+requires-python = ">=3.12"
+dependencies = [
+    "deepagents>=0.0.6",
+    "langchain>=0.3.7",
+    "langchain-anthropic>=0.3",
+    "langchain-openai>=0.2",
+    "langchain-google-genai>=2.0",
+    "langgraph>=0.2.50",
+    "langsmith>=0.1.130",
+    "langchain-mcp-adapters>=0.1.0",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "vault-mcp-shared",
+]
+
+[project.scripts]
+vault-organizer = "agents.organizer:cli"
+
+[tool.uv.sources]
+vault-mcp-shared = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agents"]

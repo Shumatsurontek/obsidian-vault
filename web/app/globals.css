@@ -1,0 +1,12 @@
+:root {
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #0b0d10;
+  color: #e6e6e6;
+}
+a { color: #7cc4ff; }

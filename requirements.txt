@@ -1,0 +1,20 @@
+# Vercel Python builder reads this. Mirrors api/ + agents/ + shared/ dependencies.
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9
+pydantic-settings>=2.5
+loguru>=0.7
+httpx>=0.27
+cryptography>=43
+fastmcp>=2.14
+deepagents>=0.0.6
+langchain>=0.3.7
+langchain-anthropic>=0.3
+langchain-openai>=0.2
+langchain-google-genai>=2.0
+langgraph>=0.2.50
+langsmith>=0.1.130
+langchain-mcp-adapters>=0.1.0
+./shared
+./agents
+./obsidian_mcp
