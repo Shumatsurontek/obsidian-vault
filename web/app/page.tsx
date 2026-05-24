@@ -54,8 +54,16 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: null }),
       });
-      const data = await res.json();
-      setOrganizerStatus(data.response?.slice(0, 800) ?? JSON.stringify(data));
+      const text = await res.text();
+      let data: { response?: string; error?: string };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setOrganizerStatus(`error (${res.status}): ${text.slice(0, 300)}`);
+        return;
+      }
+      if (data.error) setOrganizerStatus(`error: ${data.error}`);
+      else setOrganizerStatus(data.response?.slice(0, 1200) ?? "done");
     } catch (err) {
       setOrganizerStatus(`error: ${String(err)}`);
     }

@@ -74,6 +74,8 @@ class VaultClient:
     def list_vault(self, directory: str = "") -> list[str]:
         start = time.monotonic()
         target = self._resolve(directory) if directory else self.root
+        if not target.exists():
+            raise FileNotFoundError(f"Directory does not exist: {directory or '/'}")
         if not target.is_dir():
             raise NotADirectoryError(f"Not a directory: {directory}")
         entries = []

@@ -74,8 +74,11 @@ async def build_organizer(cfg: AgentConfig | None = None):
 async def run_organizer_pass(prompt: str | None = None) -> dict:
     agent = await build_organizer()
     user_msg = prompt or (
-        "Run one proactive organization pass over the vault. Focus on notes in `Inbox/` "
-        "and notes with fewer than 2 outgoing wikilinks. Apply at most 10 changes total."
+        "Run one proactive organization pass. First discover the vault's structure: "
+        "call `vault_stats`, `find_orphans`, and `list_recent_notes` — do NOT assume any "
+        "folder name exists. Pick a small batch (<= 5) of orphan or recently-edited notes, "
+        "improve their links and tags, and apply at most 10 changes total. If a tool returns "
+        "an error, adapt and continue rather than stopping."
     )
     return await agent.ainvoke({"messages": [{"role": "user", "content": user_msg}]})
 

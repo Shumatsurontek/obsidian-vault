@@ -16,13 +16,20 @@ def register_vault_tools(mcp: FastMCP, client: VaultClient) -> None:
         annotations={"readOnlyHint": True},
     )
     @traced_tool(mcp_server="obsidian", category="vault")
-    async def vault_list(directory: str = "", ctx: Context | None = None) -> list[str]:
+    async def vault_list(directory: str = "", ctx: Context | None = None) -> Any:
         """List the contents of the vault root or a sub-directory.
 
         Args:
             directory: Optional sub-directory inside the vault. Empty = vault root.
         """
-        return client.list_vault(directory)
+        try:
+            return client.list_vault(directory)
+        except (FileNotFoundError, NotADirectoryError) as exc:
+            return {
+                "status": "error",
+                "error": str(exc),
+                "hint": "Call vault_list with an empty directory to see the real top-level folders.",
+            }
 
     @mcp.tool(
         description="Read the markdown content of a note by its vault-relative path.",

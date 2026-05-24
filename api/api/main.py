@@ -39,7 +39,10 @@ async def health() -> dict[str, str]:
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest) -> dict:
-    result = await run_organizer_pass(req.prompt)
+    try:
+        result = await run_organizer_pass(req.prompt)
+    except Exception as exc:  # noqa: BLE001 — surface as JSON, never a 500 HTML page
+        return {"response": None, "error": f"{type(exc).__name__}: {exc}"}
     final = result["messages"][-1] if result.get("messages") else result
     return {"response": getattr(final, "content", str(final))}
 
@@ -61,7 +64,10 @@ async def cron_organize(authorization: str | None = Header(default=None)) -> dic
     expected = f"Bearer {secret}" if secret else None
     if expected and authorization != expected:
         raise HTTPException(status_code=401, detail="invalid cron secret")
-    result = await run_organizer_pass(None)
+    try:
+        result = await run_organizer_pass(None)
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "error": f"{type(exc).__name__}: {exc}"}
     final = result["messages"][-1] if result.get("messages") else result
     summary = getattr(final, "content", str(final))[:2000]
     return {"status": "ran", "summary": summary}
