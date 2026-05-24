@@ -10,7 +10,9 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" }
+    { "source": "/api/chat", "destination": "/api/index" },
+    { "source": "/api/agent", "destination": "/api/index" },
+    { "source": "/api/cron/(.*)", "destination": "/api/index" }
   ],
   "crons": [
     { "path": "/api/cron/organize", "schedule": "0 */6 * * *" }

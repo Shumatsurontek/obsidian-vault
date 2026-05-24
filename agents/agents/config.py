@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AgentConfig(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    model: str = Field(default="anthropic:claude-opus-4-7", alias="AGENT_MODEL")
+    model: str = Field(default="openai:gpt-5.4-mini", alias="AGENT_MODEL")
     mcp_url: str = Field(default="http://127.0.0.1:8000/mcp", alias="MCP_URL")
     mcp_static_token: str = Field(default="", alias="MCP_STATIC_TOKEN")
 

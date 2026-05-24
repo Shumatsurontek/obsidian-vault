@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   const { messages } = await req.json();
 
   const result = streamText({
-    model: process.env.AI_GATEWAY_MODEL ?? "anthropic/claude-opus-4-7",
+    model: process.env.AI_GATEWAY_MODEL ?? "openai/gpt-5.4-mini",
     system:
       "You assist with an Obsidian vault. For destructive or organizational " +
       "operations, suggest invoking the /api/chat backend (Deep Agents organizer). " +

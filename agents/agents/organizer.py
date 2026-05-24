@@ -7,9 +7,13 @@ import asyncio
 import os
 
 from deepagents import create_deep_agent
+from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 
 from .config import AgentConfig
+
+# Populate os.environ from .env so provider SDKs (OpenAI, Anthropic, …) find their keys.
+load_dotenv()
 from .prompts import LINKER_INSTRUCTIONS, ORGANIZER_INSTRUCTIONS, TAGGER_INSTRUCTIONS
 from .tools import load_vault_tools
 
@@ -26,6 +30,10 @@ async def build_organizer(cfg: AgentConfig | None = None):
 
     tools = await load_vault_tools(cfg.mcp_url, cfg.mcp_static_token or None)
     model = init_chat_model(cfg.model)
+    by_name = {t.name: t for t in tools}
+
+    def pick(*names: str) -> list:
+        return [by_name[n] for n in names if n in by_name]
 
     subagents = [
         {
@@ -33,30 +41,26 @@ async def build_organizer(cfg: AgentConfig | None = None):
             "description": (
                 "Discover candidate [[wikilinks]] for a given note. Does not modify the vault."
             ),
-            "prompt": LINKER_INSTRUCTIONS,
-            "tools": [
-                t.name
-                for t in tools
-                if t.name in {"vault_read", "find_link_candidates", "list_outgoing_links"}
-            ],
+            "system_prompt": LINKER_INSTRUCTIONS,
+            "tools": pick("vault_read", "find_link_candidates", "list_outgoing_links"),
+            "model": model,
         },
         {
             "name": "tagger",
             "description": (
                 "Propose frontmatter tags for a note, aligned with the existing taxonomy."
             ),
-            "prompt": TAGGER_INSTRUCTIONS,
-            "tools": [
-                t.name for t in tools if t.name in {"vault_read", "list_all_notes"}
-            ],
+            "system_prompt": TAGGER_INSTRUCTIONS,
+            "tools": pick("vault_read", "list_all_notes"),
+            "model": model,
         },
     ]
 
     return create_deep_agent(
-        tools=tools,
-        instructions=ORGANIZER_INSTRUCTIONS,
-        subagents=subagents,
         model=model,
+        tools=tools,
+        system_prompt=ORGANIZER_INSTRUCTIONS,
+        subagents=subagents,
     )
 
 

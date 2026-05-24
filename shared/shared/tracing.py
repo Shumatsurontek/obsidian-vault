@@ -1,7 +1,9 @@
 """Tracing primitives for MCP tool calls.
 
-Emits one JSON line per tool call to stdout (consumable by Vercel runtime
-logs, Cloud Logging, BigQuery sinks, etc.).
+Emits one JSON line per tool call to stderr (consumable by Vercel runtime
+logs, Cloud Logging, BigQuery sinks, etc.). stderr — not stdout — because in
+stdio transport mode stdout carries the JSON-RPC protocol; writing traces there
+would corrupt the message stream.
 """
 
 from __future__ import annotations
@@ -140,8 +142,8 @@ def _emit_event(
         "truncated": in_trunc or out_trunc,
         **identity,
     }
-    sys.stdout.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
-    sys.stdout.flush()
+    sys.stderr.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
+    sys.stderr.flush()
 
 
 def traced_tool(*, mcp_server: str, category: str, exclude: tuple[str, ...] = ()):
