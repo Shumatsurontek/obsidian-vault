@@ -21,6 +21,7 @@ app = FastAPI(title="vault-mcp api", version="0.1.0")
 
 class ChatRequest(BaseModel):
     prompt: str | None = None
+    dry_run: bool = False
 
 
 class Turn(BaseModel):
@@ -40,7 +41,7 @@ async def health() -> dict[str, str]:
 @app.post("/api/chat")
 async def chat(req: ChatRequest) -> dict:
     try:
-        result = await run_organizer_pass(req.prompt)
+        result = await run_organizer_pass(req.prompt, dry_run=req.dry_run)
     except Exception as exc:  # noqa: BLE001 — surface as JSON, never a 500 HTML page
         return {"response": None, "error": f"{type(exc).__name__}: {exc}"}
     final = result["messages"][-1] if result.get("messages") else result

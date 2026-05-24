@@ -28,7 +28,7 @@ def register_vault_tools(mcp: FastMCP, client: VaultClient) -> None:
             return {
                 "status": "error",
                 "error": str(exc),
-                "hint": "Call vault_list with an empty directory to see the real top-level folders.",
+                "hint": "Call vault_list with an empty directory to see real top-level folders.",
             }
 
     @mcp.tool(

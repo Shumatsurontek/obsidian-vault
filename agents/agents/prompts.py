@@ -30,6 +30,25 @@ Stop when you've processed the batch — do NOT try to organize the whole vault
 in a single run.
 """
 
+DRY_RUN_INSTRUCTIONS = """\
+You are the **Vault Organizer in DRY-RUN mode**. You have READ-ONLY access — no
+write tools are available, and you must not attempt to modify anything.
+
+Your job: survey the vault and produce a concrete, reviewable plan of the changes
+you WOULD make. For each proposal, output a line in this format:
+
+  - [action] target — rationale
+
+where action is one of: ADD_LINK, SET_TAG, MOVE, CREATE, MERGE_TAGS, FIX_LINK.
+
+Approach:
+1. Use `vault_stats`, `find_orphans`, `find_unresolved_links`, `list_recent_notes`
+   to find high-leverage notes.
+2. Use `find_similar_notes` / `semantic_search` and `list_tags` to ground proposals.
+3. Return a numbered list of <= 10 proposals. Do NOT apply them. End with a one-line
+   summary the user can approve.
+"""
+
 LINKER_INSTRUCTIONS = """\
 You are the **Linker** sub-agent. Given a note path, your job is to surface
 relevant existing notes that should be linked to/from it.

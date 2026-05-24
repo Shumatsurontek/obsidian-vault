@@ -9,6 +9,7 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [organizerStatus, setOrganizerStatus] = useState<string | null>(null);
+  const [dryRun, setDryRun] = useState(true);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +53,7 @@ export default function Home() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: null }),
+        body: JSON.stringify({ prompt: null, dry_run: dryRun }),
       });
       const text = await res.text();
       let data: { response?: string; error?: string };
@@ -80,12 +81,26 @@ export default function Home() {
 
       <section style={{ border: "1px solid #222", borderRadius: 8, padding: 16, marginBottom: 24 }}>
         <h2 style={{ marginTop: 0, fontSize: 16 }}>Organizer</h2>
-        <button
-          onClick={runOrganizerPass}
-          style={{ background: "#1a73e8", color: "white", border: 0, padding: "8px 14px", borderRadius: 6, cursor: "pointer" }}
-        >
-          Run one pass now
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={runOrganizerPass}
+            style={{ background: dryRun ? "#1a73e8" : "#e8731a", color: "white", border: 0, padding: "8px 14px", borderRadius: 6, cursor: "pointer" }}
+          >
+            {dryRun ? "Preview a pass (dry-run)" : "Run + apply a pass"}
+          </button>
+          <label style={{ fontSize: 13, color: "#aaa", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={dryRun}
+              onChange={(e) => setDryRun(e.target.checked)}
+              style={{ marginRight: 6 }}
+            />
+            dry-run (propose only, no writes)
+          </label>
+        </div>
+        <p style={{ fontSize: 12, color: "#666", margin: "8px 0 0" }}>
+          Writes are auto-snapshotted; undo with the <code>undo_last_pass</code> tool.
+        </p>
         {organizerStatus && (
           <pre style={{ whiteSpace: "pre-wrap", marginTop: 12, color: "#aaa" }}>{organizerStatus}</pre>
         )}

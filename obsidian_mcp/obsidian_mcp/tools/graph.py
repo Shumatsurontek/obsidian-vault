@@ -12,25 +12,34 @@ from ..client import VaultClient
 from ..wikilinks import extract_targets, rewrite_target
 
 
-def _build_link_graph(client: VaultClient) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
-    """Return (outgoing, incoming) maps keyed by note basename."""
+def _build_link_graph(
+    client: VaultClient,
+) -> tuple[dict[str, set[str]], dict[str, set[str]], dict[str, str]]:
+    """Return (outgoing, incoming, display) keyed by case-folded link key.
+
+    Link resolution is case-insensitive, matching Obsidian. `display` maps a key
+    back to the note's actual basename for rendering.
+    """
     outgoing: dict[str, set[str]] = {}
     incoming: dict[str, set[str]] = {}
+    display: dict[str, str] = {}
     for path in client.iter_note_paths():
-        base = client.basename(path)
-        outgoing.setdefault(base, set())
-        incoming.setdefault(base, set())
+        key = client.link_key(path)
+        display[key] = client.basename(path)
+        outgoing.setdefault(key, set())
+        incoming.setdefault(key, set())
     for path in client.iter_note_paths():
-        base = client.basename(path)
+        key = client.link_key(path)
         try:
             targets = extract_targets(client.read_note(path))
         except OSError:
             continue
         for tgt in targets:
-            tgt_base = client.basename(tgt)
-            outgoing[base].add(tgt_base)
-            incoming.setdefault(tgt_base, set()).add(base)
-    return outgoing, incoming
+            tkey = client.link_key(tgt)
+            display.setdefault(tkey, client.basename(tgt))
+            outgoing[key].add(tkey)
+            incoming.setdefault(tkey, set()).add(key)
+    return outgoing, incoming, display
 
 
 def register_graph_tools(mcp: FastMCP, client: VaultClient) -> None:
@@ -83,11 +92,11 @@ def register_graph_tools(mcp: FastMCP, client: VaultClient) -> None:
     )
     @traced_tool(mcp_server="obsidian", category="graph")
     async def find_orphans(ctx: Context | None = None) -> list[str]:
-        outgoing, incoming = _build_link_graph(client)
+        outgoing, incoming, _ = _build_link_graph(client)
         orphans = []
         for path in client.iter_note_paths():
-            base = client.basename(path)
-            if not outgoing.get(base) and not incoming.get(base):
+            key = client.link_key(path)
+            if not outgoing.get(key) and not incoming.get(key):
                 orphans.append(path)
         return sorted(orphans)
 
@@ -100,11 +109,11 @@ def register_graph_tools(mcp: FastMCP, client: VaultClient) -> None:
     )
     @traced_tool(mcp_server="obsidian", category="graph")
     async def find_unresolved_links(ctx: Context | None = None) -> list[dict[str, Any]]:
-        existing = {client.basename(p) for p in client.iter_note_paths()}
+        existing = {client.link_key(p) for p in client.iter_note_paths()}
         unresolved: dict[str, set[str]] = {}
         for path in client.iter_note_paths():
             for tgt in extract_targets(client.read_note(path)):
-                if client.basename(tgt) not in existing:
+                if client.link_key(tgt) not in existing:
                     unresolved.setdefault(tgt, set()).add(path)
         return [
             {"target": tgt, "referenced_by": sorted(refs)}
@@ -117,17 +126,17 @@ def register_graph_tools(mcp: FastMCP, client: VaultClient) -> None:
     )
     @traced_tool(mcp_server="obsidian", category="graph")
     async def vault_stats(ctx: Context | None = None) -> dict[str, Any]:
-        outgoing, incoming = _build_link_graph(client)
-        existing = set(outgoing)
+        outgoing, incoming, _ = _build_link_graph(client)
+        note_keys = {client.link_key(p) for p in client.iter_note_paths()}
         note_count = sum(1 for _ in client.iter_note_paths())
         total_links = sum(len(v) for v in outgoing.values())
         orphans = sum(
-            1 for b in existing if not outgoing.get(b) and not incoming.get(b)
+            1 for k in note_keys if not outgoing.get(k) and not incoming.get(k)
         )
         unresolved = 0
         for path in client.iter_note_paths():
             for tgt in extract_targets(client.read_note(path)):
-                if client.basename(tgt) not in existing:
+                if client.link_key(tgt) not in note_keys:
                     unresolved += 1
         return {
             "notes": note_count,
@@ -136,6 +145,38 @@ def register_graph_tools(mcp: FastMCP, client: VaultClient) -> None:
             "unresolved_links": unresolved,
             "avg_links_per_note": round(total_links / note_count, 2) if note_count else 0,
         }
+
+    @mcp.tool(
+        description=(
+            "Export the note link graph. format='mermaid' returns a Mermaid diagram string; "
+            "format='json' returns {nodes, edges}. Only resolved links are included."
+        ),
+        annotations={"readOnlyHint": True},
+    )
+    @traced_tool(mcp_server="obsidian", category="graph")
+    async def export_graph(
+        fmt: str = "mermaid", ctx: Context | None = None
+    ) -> dict[str, Any]:
+        outgoing, _, display = _build_link_graph(client)
+        note_keys = {client.link_key(p) for p in client.iter_note_paths()}
+        edges = [
+            (display[src], display[dst])
+            for src, dsts in outgoing.items()
+            if src in note_keys
+            for dst in dsts
+            if dst in note_keys
+        ]
+        nodes = sorted(display[k] for k in note_keys)
+        if fmt == "json":
+            return {"nodes": nodes, "edges": [list(e) for e in edges]}
+
+        def nid(name: str) -> str:
+            return "n_" + "".join(c if c.isalnum() else "_" for c in name)
+
+        lines = ["graph TD"]
+        lines.extend(f'    {nid(name)}["{name}"]' for name in nodes)
+        lines.extend(f"    {nid(src)} --> {nid(dst)}" for src, dst in edges)
+        return {"format": "mermaid", "diagram": "\n".join(lines), "edge_count": len(edges)}
 
     @mcp.tool(
         description="List the most recently modified notes (default 10), newest first.",

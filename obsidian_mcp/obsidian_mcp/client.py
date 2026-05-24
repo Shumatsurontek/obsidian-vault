@@ -63,6 +63,11 @@ class VaultClient:
         name = Path(relative).name
         return name[:-3] if name.endswith(".md") else name
 
+    @classmethod
+    def link_key(cls, name: str) -> str:
+        """Case-insensitive key for link resolution (Obsidian resolves links case-insensitively)."""
+        return cls.basename(name).casefold()
+
     def iter_note_paths(self):
         for md in self.root.rglob("*.md"):
             if any(p.startswith(".") for p in md.relative_to(self.root).parts):

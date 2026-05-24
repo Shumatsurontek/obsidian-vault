@@ -128,19 +128,27 @@ set `MCP_STATIC_TOKEN` and send `Authorization: Bearer <token>` from the client.
 |---|---|
 | Vault | `vault_list`, `vault_read`, `vault_write`, `vault_append`, `vault_delete`, `vault_set_frontmatter`, `list_all_notes`, `search_simple` |
 | Links | `list_outgoing_links`, `find_backlinks`, `find_link_candidates`, `add_wikilink` |
-| Graph | `move_note`, `find_orphans`, `find_unresolved_links`, `vault_stats`, `list_recent_notes` |
+| Graph | `move_note`, `find_orphans`, `find_unresolved_links`, `vault_stats`, `list_recent_notes`, `export_graph` |
 | Tags | `list_tags`, `get_notes_by_tag`, `get_frontmatter`, `rename_tag`, `merge_tags` |
 | Templates | `list_templates`, `create_from_template`, `upsert_template`, `create_daily_note` |
-| Semantic | `semantic_search`, `find_similar_notes`, `reindex_embeddings` |
+| Semantic | `semantic_search`, `find_similar_notes`, `find_duplicates`, `reindex_embeddings` |
+| Snapshots | `snapshot_vault`, `list_snapshots`, `undo_last_pass` |
 
 Notes on behavior:
 
 - `move_note` rewrites every `[[wikilink]]` that targets the note, including
   `|alias` and `#heading` forms, so references are not broken. Prefer it over
-  delete-and-recreate.
+  delete-and-recreate. Link resolution is case-insensitive, matching Obsidian.
 - Semantic tools build an embedding index cached at `<vault>/.vault-mcp/`,
   keyed by file modification time, so refreshes only re-embed changed notes.
   They are disabled and return an explicit error when `OPENAI_API_KEY` is unset.
+- Snapshots are git-backed in an isolated git directory under `.vault-mcp/`;
+  they never create a `.git` in the vault. The organizer takes one automatically
+  before any write pass, and `undo_last_pass` restores the most recent snapshot.
+- The organizer supports a dry-run mode (read-only) that proposes a reviewable
+  change list without writing. The UI exposes it as a checkbox.
+- `export_graph` returns the link graph as Mermaid or JSON; `find_duplicates`
+  reports near-identical notes by embedding similarity.
 - Template and daily-note directories are auto-detected by name when
   `OBSIDIAN_TEMPLATES_DIR` / `OBSIDIAN_DAILY_DIR` are not set.
 

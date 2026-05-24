@@ -56,6 +56,21 @@ def register_semantic_tools(mcp: FastMCP, client: VaultClient, cfg) -> None:
         return index.similar(path, k=k)
 
     @mcp.tool(
+        description=(
+            "Find near-duplicate notes by embedding similarity. Returns pairs with a cosine "
+            "score >= threshold (default 0.85), highest first — candidates to merge."
+        ),
+        annotations={"readOnlyHint": True},
+    )
+    @traced_tool(mcp_server="obsidian", category="semantic")
+    async def find_duplicates(
+        threshold: float = 0.85, ctx: Context | None = None
+    ) -> list[dict[str, Any]] | dict[str, Any]:
+        if index is None:
+            return _NO_KEY
+        return index.duplicates(threshold=threshold)
+
+    @mcp.tool(
         description="Rebuild the embedding index (incremental: only new/changed notes).",
     )
     @traced_tool(mcp_server="obsidian", category="semantic")

@@ -118,6 +118,21 @@ class SemanticIndex:
         top = np.argsort(-scores)[:k]
         return [{"path": paths[i], "score": round(float(scores[i]), 4)} for i in top]
 
+    def duplicates(self, threshold: float = 0.85) -> list[dict[str, Any]]:
+        self.refresh()
+        paths, mat = self._matrix()
+        if len(paths) < 2:
+            return []
+        sims = mat @ mat.T
+        pairs = []
+        for i in range(len(paths)):
+            for j in range(i + 1, len(paths)):
+                score = float(sims[i, j])
+                if score >= threshold:
+                    pairs.append({"a": paths[i], "b": paths[j], "score": round(score, 4)})
+        pairs.sort(key=lambda p: -p["score"])
+        return pairs
+
     def similar(self, path: str, k: int = 5) -> list[dict[str, Any]]:
         self.refresh()
         if path not in self._vectors:
