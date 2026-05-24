@@ -97,9 +97,9 @@ def _extract_identity(ctx: Any, mcp_server: str) -> dict[str, Any]:
     extras_fn = _identity_extras.get(mcp_server)
     if extras_fn is not None:
         with contextlib.suppress(Exception):
-            for key, value in (extras_fn(ctx) or {}).items():
-                if key not in _RESERVED_EXTRA_KEYS:
-                    identity[key] = value
+            identity.update(
+                {k: v for k, v in (extras_fn(ctx) or {}).items() if k not in _RESERVED_EXTRA_KEYS}
+            )
     return identity
 
 
@@ -168,7 +168,7 @@ def traced_tool(*, mcp_server: str, category: str, exclude: tuple[str, ...] = ()
             status, error, output = "ok", None, None
             try:
                 output = await func(*args, **kwargs)
-                return output
+                return output  # noqa: RET504 — finally needs `output` bound
             except BaseException as exc:  # noqa: BLE001
                 status = "error"
                 error = f"{type(exc).__name__}: {exc}"

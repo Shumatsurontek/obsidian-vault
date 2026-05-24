@@ -6,7 +6,6 @@ import re
 from typing import Any
 
 from fastmcp import Context, FastMCP
-
 from shared.tracing import traced_tool
 
 from ..client import VaultClient

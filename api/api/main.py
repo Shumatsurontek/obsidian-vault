@@ -10,12 +10,11 @@ from __future__ import annotations
 
 import os
 
+from agents.chat import astream_chat
+from agents.organizer import run_organizer_pass
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-
-from agents.chat import astream_chat
-from agents.organizer import run_organizer_pass
 
 app = FastAPI(title="vault-mcp api", version="0.1.0")
 

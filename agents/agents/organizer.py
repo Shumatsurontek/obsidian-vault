@@ -11,11 +11,11 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 
 from .config import AgentConfig
+from .prompts import LINKER_INSTRUCTIONS, ORGANIZER_INSTRUCTIONS, TAGGER_INSTRUCTIONS
+from .tools import load_vault_tools
 
 # Populate os.environ from .env so provider SDKs (OpenAI, Anthropic, …) find their keys.
 load_dotenv()
-from .prompts import LINKER_INSTRUCTIONS, ORGANIZER_INSTRUCTIONS, TAGGER_INSTRUCTIONS
-from .tools import load_vault_tools
 
 
 def _configure_langsmith(cfg: AgentConfig) -> None:
@@ -39,10 +39,17 @@ async def build_organizer(cfg: AgentConfig | None = None):
         {
             "name": "linker",
             "description": (
-                "Discover candidate [[wikilinks]] for a given note. Does not modify the vault."
+                "Discover candidate [[wikilinks]] for a given note, by meaning and by text. "
+                "Does not modify the vault."
             ),
             "system_prompt": LINKER_INSTRUCTIONS,
-            "tools": pick("vault_read", "find_link_candidates", "list_outgoing_links"),
+            "tools": pick(
+                "vault_read",
+                "find_similar_notes",
+                "semantic_search",
+                "find_link_candidates",
+                "list_outgoing_links",
+            ),
             "model": model,
         },
         {
@@ -51,7 +58,7 @@ async def build_organizer(cfg: AgentConfig | None = None):
                 "Propose frontmatter tags for a note, aligned with the existing taxonomy."
             ),
             "system_prompt": TAGGER_INSTRUCTIONS,
-            "tools": pick("vault_read", "list_all_notes"),
+            "tools": pick("vault_read", "list_tags", "get_frontmatter"),
             "model": model,
         },
     ]

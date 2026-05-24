@@ -42,6 +42,33 @@ class VaultClient:
     def _rel(self, path: Path) -> str:
         return str(path.relative_to(self.root))
 
+    # --- public path helpers -------------------------------------------------
+
+    def resolve(self, relative: str) -> Path:
+        """Public, traversal-safe path resolution."""
+        return self._resolve(relative)
+
+    def rel(self, path: Path) -> str:
+        return self._rel(path)
+
+    def exists(self, relative: str) -> bool:
+        return self._resolve(relative).exists()
+
+    def mtime(self, relative: str) -> float:
+        return self._resolve(relative).stat().st_mtime
+
+    @staticmethod
+    def basename(relative: str) -> str:
+        """Note title as Obsidian sees it: filename without the .md suffix."""
+        name = Path(relative).name
+        return name[:-3] if name.endswith(".md") else name
+
+    def iter_note_paths(self):
+        for md in self.root.rglob("*.md"):
+            if any(p.startswith(".") for p in md.relative_to(self.root).parts):
+                continue
+            yield self._rel(md)
+
     # --- vault primitives ----------------------------------------------------
 
     def list_vault(self, directory: str = "") -> list[str]:

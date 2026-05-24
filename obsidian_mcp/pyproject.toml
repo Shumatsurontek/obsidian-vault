@@ -1,13 +1,16 @@
 [project]
 name = "obsidian-mcp"
 version = "0.1.0"
-description = "FastMCP server exposing an Obsidian vault via the Local REST API plugin"
+description = "FastMCP server exposing an Obsidian vault from the filesystem"
 requires-python = ">=3.12"
 dependencies = [
     "fastmcp>=2.14",
     "httpx>=0.27",
     "pydantic>=2.9",
     "pydantic-settings>=2.5",
+    "pyyaml>=6.0",
+    "openai>=1.40",
+    "numpy>=1.26",
     "vault-mcp-shared",
 ]
 

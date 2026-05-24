@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from fastmcp import Context, FastMCP
-
 from shared.tracing import traced_tool
 
 from ..client import VaultClient
