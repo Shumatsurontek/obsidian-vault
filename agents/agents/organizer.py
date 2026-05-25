@@ -34,7 +34,7 @@ def _configure_langsmith(cfg: AgentConfig) -> None:
 WRITE_TOOLS = frozenset(
     {
         "vault_write", "vault_append", "vault_delete", "vault_set_frontmatter",
-        "add_wikilink", "move_note", "rename_tag", "merge_tags",
+        "add_wikilink", "remove_wikilink", "move_note", "rename_tag", "merge_tags",
         "create_from_template", "upsert_template", "create_daily_note",
         "snapshot_vault", "undo_last_pass",
     }

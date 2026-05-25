@@ -7,12 +7,18 @@ Obsidian vault you have on disk.
 
 from __future__ import annotations
 
+import logging
 import re
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
 
 from shared.tracing import record_upstream
+
+from .git_snapshot import GitSnapshot
+
+logger = logging.getLogger(__name__)
 
 
 class VaultPathError(ValueError):
@@ -20,12 +26,26 @@ class VaultPathError(ValueError):
 
 
 class VaultClient:
-    def __init__(self, vault_path: str | Path):
+    def __init__(self, vault_path: str | Path, *, auto_snapshot: bool = True):
         self.root = Path(vault_path).expanduser().resolve()
         if not self.root.exists():
             raise FileNotFoundError(f"Vault path does not exist: {self.root}")
         if not self.root.is_dir():
             raise NotADirectoryError(f"Vault path is not a directory: {self.root}")
+        # A single snapshotter, shared with the snapshot tools, so auto-checkpoints
+        # and manual snapshots/undo all address the same isolated git repo.
+        self.snapshot: GitSnapshot | None = GitSnapshot(self.root) if auto_snapshot else None
+
+    # --- safety net ----------------------------------------------------------
+
+    def _checkpoint(self) -> None:
+        """Take a pre-edit restore point. Never let snapshotting block a write."""
+        if self.snapshot is None:
+            return
+        try:
+            self.snapshot.checkpoint()
+        except (subprocess.SubprocessError, OSError) as exc:
+            logger.warning("auto-snapshot checkpoint failed (continuing): %s", exc)
 
     # --- path safety ---------------------------------------------------------
 
@@ -100,6 +120,7 @@ class VaultClient:
         return content
 
     def write_note(self, path: str, content: str) -> None:
+        self._checkpoint()
         start = time.monotonic()
         target = self._resolve(path)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -107,6 +128,7 @@ class VaultClient:
         record_upstream("vault_fs", int((time.monotonic() - start) * 1000))
 
     def append_note(self, path: str, content: str) -> None:
+        self._checkpoint()
         start = time.monotonic()
         target = self._resolve(path)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -117,6 +139,7 @@ class VaultClient:
         record_upstream("vault_fs", int((time.monotonic() - start) * 1000))
 
     def delete_note(self, path: str) -> None:
+        self._checkpoint()
         start = time.monotonic()
         target = self._resolve(path)
         target.unlink()

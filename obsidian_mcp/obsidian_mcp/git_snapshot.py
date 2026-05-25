@@ -9,6 +9,8 @@ internal folders are excluded.
 from __future__ import annotations
 
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -20,11 +22,21 @@ _EXCLUDES = [
     ".DS_Store",
 ]
 
+# Consecutive edits within this window share a single pre-edit baseline, so
+# `undo_last_pass` reverts the whole batch (an organizer pass, or a burst of
+# interactive edits) rather than just the most recent write.
+_CHECKPOINT_DEBOUNCE_SECONDS = 90.0
+
 
 class GitSnapshot:
     def __init__(self, vault_root: Path):
         self.root = Path(vault_root)
         self.git_dir = self.root / ".vault-mcp" / "snapshots.git"
+        self._last_checkpoint = 0.0
+        # Serialize git index/commit operations. The HTTP server may run tool
+        # handlers in threads; a shared work-tree must not see concurrent
+        # `git add`/`commit`/`reset`. (Multi-process deploys need 1 worker.)
+        self._lock = threading.Lock()
 
     # --- plumbing ------------------------------------------------------------
 
@@ -65,13 +77,39 @@ class GitSnapshot:
     # --- public API ----------------------------------------------------------
 
     def snapshot(self, label: str = "snapshot") -> dict[str, Any]:
-        self._ensure_repo()
-        self._git("add", "-A")
-        status = self._git("status", "--porcelain").stdout.strip()
-        if not status and self._has_commits():
-            return {"status": "unchanged", "sha": self._head()}
-        self._git("commit", "--quiet", "--allow-empty", "-m", label)
-        return {"status": "snapshot", "sha": self._head(), "label": label}
+        with self._lock:
+            self._ensure_repo()
+            self._git("add", "-A")
+            status = self._git("status", "--porcelain").stdout.strip()
+            if not status and self._has_commits():
+                return {"status": "unchanged", "sha": self._head()}
+            self._git("commit", "--quiet", "--allow-empty", "-m", label)
+            self._last_checkpoint = time.monotonic()
+            return {"status": "snapshot", "sha": self._head(), "label": label}
+
+    def checkpoint(self, label: str = "auto: pre-edit baseline") -> dict[str, Any]:
+        """Capture the current (pre-edit) state as a restore point before a write.
+
+        Called automatically by the vault client ahead of every mutation. It is
+        debounced (see ``_CHECKPOINT_DEBOUNCE_SECONDS``): the first write of a
+        batch commits a baseline, and rapid follow-up writes reuse it so a single
+        ``undo_last_pass`` reverts the entire batch. The very first write to a
+        fresh repo always commits, so undo is never left with nothing to restore.
+        """
+        with self._lock:
+            self._ensure_repo()
+            now = time.monotonic()
+            first_ever = not self._has_commits()
+            if not first_ever and (now - self._last_checkpoint) < _CHECKPOINT_DEBOUNCE_SECONDS:
+                return {"status": "debounced"}
+            self._git("add", "-A")
+            dirty = bool(self._git("status", "--porcelain").stdout.strip())
+            if not dirty and not first_ever:
+                self._last_checkpoint = now
+                return {"status": "unchanged", "sha": self._head()}
+            self._git("commit", "--quiet", "--allow-empty", "-m", label)
+            self._last_checkpoint = now
+            return {"status": "checkpoint", "sha": self._head(), "label": label}
 
     def list_snapshots(self, limit: int = 20) -> list[dict[str, str]]:
         if not self._has_commits():
@@ -87,13 +125,14 @@ class GitSnapshot:
 
     def restore(self, sha: str | None = None) -> dict[str, Any]:
         """Restore the vault work-tree to a snapshot (default: latest)."""
-        if not self._has_commits():
-            return {"status": "error", "error": "no snapshots exist yet"}
-        target = sha or self._head()
-        self._git("reset", "--hard", "--quiet", target)
-        # Drop files created after the snapshot (respecting excludes).
-        self._git("clean", "-fdq")
-        return {"status": "restored", "sha": target}
+        with self._lock:
+            if not self._has_commits():
+                return {"status": "error", "error": "no snapshots exist yet"}
+            target = sha or self._head()
+            self._git("reset", "--hard", "--quiet", target)
+            # Drop files created after the snapshot (respecting excludes).
+            self._git("clean", "-fdq")
+            return {"status": "restored", "sha": target}
 
     # --- helpers -------------------------------------------------------------
 

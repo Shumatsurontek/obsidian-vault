@@ -12,7 +12,9 @@ from ..git_snapshot import GitSnapshot
 
 
 def register_snapshot_tools(mcp: FastMCP, client: VaultClient) -> None:
-    snap = GitSnapshot(client.root)
+    # Reuse the client's snapshotter so auto-checkpoints, manual snapshots, and
+    # undo all share one repo and one debounce clock.
+    snap = client.snapshot or GitSnapshot(client.root)
 
     @mcp.tool(
         description=(

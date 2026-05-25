@@ -1,22 +1,45 @@
 """FastAPI app exposed on Vercel.
 
 Routes:
-- GET  /api/health         → liveness probe
-- POST /api/chat           → run an organizer pass / arbitrary prompt
-- GET  /api/cron/organize  → cron-protected proactive pass (Vercel Cron hits this)
+- GET  /api/health         → liveness probe (public)
+- POST /api/chat           → run an organizer pass / arbitrary prompt (API_SECRET)
+- POST /api/agent          → streaming chat (API_SECRET)
+- GET  /api/cron/organize  → cron-protected proactive pass (CRON_SECRET)
+
+Auth: routes that trigger agent runs (vault mutations + model spend) require a
+bearer token. ``/api/chat`` and ``/api/agent`` use ``API_SECRET``; the Vercel
+cron route uses ``CRON_SECRET``. If a secret is unset the matching route stays
+open for local dev — set it before deploying publicly.
 """
 
 from __future__ import annotations
 
+import hmac
 import os
 
 from agents.chat import astream_chat
 from agents.organizer import run_organizer_pass
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 app = FastAPI(title="vault-mcp api", version="0.1.0")
+
+
+def _require_secret(authorization: str | None, env_var: str) -> None:
+    """401 unless ``authorization`` is ``Bearer <env_var>`` (constant-time).
+
+    No-op when the env var is unset, so local dev works without ceremony.
+    """
+    secret = os.environ.get(env_var, "")
+    if not secret:
+        return
+    if not (authorization and hmac.compare_digest(authorization, f"Bearer {secret}")):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
+def require_api_secret(authorization: str | None = Header(default=None)) -> None:
+    _require_secret(authorization, "API_SECRET")
 
 
 class ChatRequest(BaseModel):
@@ -38,7 +61,7 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/api/chat")
+@app.post("/api/chat", dependencies=[Depends(require_api_secret)])
 async def chat(req: ChatRequest) -> dict:
     try:
         result = await run_organizer_pass(req.prompt, dry_run=req.dry_run)
@@ -48,7 +71,7 @@ async def chat(req: ChatRequest) -> dict:
     return {"response": getattr(final, "content", str(final))}
 
 
-@app.post("/api/agent")
+@app.post("/api/agent", dependencies=[Depends(require_api_secret)])
 async def agent_stream(req: AgentRequest) -> StreamingResponse:
     messages = [{"role": t.role, "content": t.content} for t in req.messages]
 
@@ -61,10 +84,7 @@ async def agent_stream(req: AgentRequest) -> StreamingResponse:
 
 @app.get("/api/cron/organize")
 async def cron_organize(authorization: str | None = Header(default=None)) -> dict:
-    secret = os.environ.get("CRON_SECRET", "")
-    expected = f"Bearer {secret}" if secret else None
-    if expected and authorization != expected:
-        raise HTTPException(status_code=401, detail="invalid cron secret")
+    _require_secret(authorization, "CRON_SECRET")
     try:
         result = await run_organizer_pass(None)
     except Exception as exc:  # noqa: BLE001

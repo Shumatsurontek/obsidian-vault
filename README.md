@@ -20,7 +20,7 @@ and no API key are required to operate it.
                      └────────────────┘     └────────────────┘
 ```
 
-- The MCP server (`obsidian_mcp`) exposes 29 tools over FastMCP, backed by a
+- The MCP server (`obsidian_mcp`) exposes 35 tools over FastMCP, backed by a
   path-safe filesystem client. Configuration is a single variable,
   `VAULT_PATH`.
 - The agent layer (`agents`) is a Deep Agents orchestrator with `linker` and
@@ -127,7 +127,7 @@ set `MCP_STATIC_TOKEN` and send `Authorization: Bearer <token>` from the client.
 | Family | Tools |
 |---|---|
 | Vault | `vault_list`, `vault_read`, `vault_write`, `vault_append`, `vault_delete`, `vault_set_frontmatter`, `list_all_notes`, `search_simple` |
-| Links | `list_outgoing_links`, `find_backlinks`, `find_link_candidates`, `add_wikilink` |
+| Links | `list_outgoing_links`, `find_backlinks`, `find_link_candidates`, `add_wikilink`, `remove_wikilink` |
 | Graph | `move_note`, `find_orphans`, `find_unresolved_links`, `vault_stats`, `list_recent_notes`, `export_graph` |
 | Tags | `list_tags`, `get_notes_by_tag`, `get_frontmatter`, `rename_tag`, `merge_tags` |
 | Templates | `list_templates`, `create_from_template`, `upsert_template`, `create_daily_note` |
@@ -136,6 +136,10 @@ set `MCP_STATIC_TOKEN` and send `Authorization: Bearer <token>` from the client.
 
 Notes on behavior:
 
+- `add_wikilink` is idempotent (won't duplicate a link to a note already linked,
+  case-insensitively) and appends to any `*Related*` heading without disturbing
+  list spacing. `remove_wikilink` is its inverse — it strips a link (alias and
+  `#heading` forms included) and cleans up the emptied bullet.
 - `move_note` rewrites every `[[wikilink]]` that targets the note, including
   `|alias` and `#heading` forms, so references are not broken. Prefer it over
   delete-and-recreate. Link resolution is case-insensitive, matching Obsidian.
@@ -143,8 +147,10 @@ Notes on behavior:
   keyed by file modification time, so refreshes only re-embed changed notes.
   They are disabled and return an explicit error when `OPENAI_API_KEY` is unset.
 - Snapshots are git-backed in an isolated git directory under `.vault-mcp/`;
-  they never create a `.git` in the vault. The organizer takes one automatically
-  before any write pass, and `undo_last_pass` restores the most recent snapshot.
+  they never create a `.git` in the vault. **Every write auto-creates a restore
+  point** at the client layer — consecutive edits within ~90s share one baseline,
+  so `undo_last_pass` reverts a whole batch (an organizer pass, or a burst of
+  manual edits) rather than just the last write.
 - The organizer supports a dry-run mode (read-only) that proposes a reviewable
   change list without writing. The UI exposes it as a checkbox.
 - `export_graph` returns the link graph as Mermaid or JSON; `find_duplicates`
@@ -157,11 +163,31 @@ Example client prompts:
 ```
 Report vault_stats and list orphan notes.
 Semantic-search for "prompt caching strategies" and read the top result.
-Find notes similar to 00-inbox/TODO GAIA.md and propose two wikilinks.
+Find notes similar to Inbox/reading-list.md and propose two wikilinks.
 List tags with counts, then merge "infra" and "infrastructure" into "infrastructure".
 Move "Inbox/note-un.md" to "Projects/Note Un.md" and fix all backlinks.
 Create today's daily note from the daily template.
 ```
+
+## Security
+
+This server can **read, write, and delete** your vault. Treat access to it as
+access to your notes.
+
+- **stdio** transport (Claude Code / Desktop) is local-only and unauthenticated
+  by design — the client launches the process directly.
+- **HTTP/SSE** transport requires `Authorization: Bearer <MCP_STATIC_TOKEN>` on
+  every request (the `/health` probe is public). If `MCP_STATIC_TOKEN` is unset
+  the server still starts but logs a loud warning and runs **open** — never
+  expose it on a network without a token. Tokens are compared in constant time.
+- The FastAPI routes that trigger agent runs (`/api/chat`, `/api/agent`) require
+  `Authorization: Bearer <API_SECRET>`; the Vercel cron route uses `CRON_SECRET`.
+  Each guard is a no-op only when its secret is unset (local dev) — set them
+  before deploying.
+- Secrets live in `.env` (git-ignored), GitHub Actions secrets in CI, and the
+  platform secret store in production. Never commit a real `.env`.
+- Snapshots are stored in `<vault>/.vault-mcp/` and are excluded from the
+  snapshot history itself; they are local restore points, not a backup.
 
 ## Deployment (Vercel)
 
@@ -196,8 +222,9 @@ cron local (launchd / systemd) and use Vercel for the UI only.
 | `AI_GATEWAY_API_KEY` | for UI streaming via gateway | Vercel AI Gateway key |
 | `AI_GATEWAY_MODEL` | default `openai/gpt-5.4-mini` | `provider/model` string |
 | `MCP_URL` | default `http://127.0.0.1:8000/mcp` | Agent-to-MCP endpoint |
-| `MCP_STATIC_TOKEN` | optional | Bearer token for remote MCP access |
+| `MCP_STATIC_TOKEN` | for HTTP/SSE | Bearer token guarding the network MCP transport; server warns and runs open if unset |
 | `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` | optional | Agent trace export |
+| `API_SECRET` | for public deploy | Protects `/api/chat` and `/api/agent` |
 | `CRON_SECRET` | production | Protects `/api/cron/organize` |
 
 ## Make targets
