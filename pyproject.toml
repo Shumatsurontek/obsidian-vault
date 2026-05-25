@@ -22,6 +22,10 @@ select = ["E", "W", "F", "I", "N", "UP", "B", "C4", "SIM", "ARG", "PIE", "T20", 
 # ARG001: tools receive a FastMCP-injected `ctx` they don't always read.
 ignore = ["B008", "ARG001"]
 
+[tool.ruff.lint.per-file-ignores]
+# The demo script prints to the terminal by design (it's recorded as a GIF).
+"docs/*" = ["T201"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "-v"
