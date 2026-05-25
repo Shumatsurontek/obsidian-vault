@@ -3,9 +3,9 @@
 [![CI](https://github.com/Shumatsurontek/obsidian-vault/actions/workflows/ci.yml/badge.svg)](https://github.com/Shumatsurontek/obsidian-vault/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-<!-- Demo: record a short GIF of the organizer linking notes, save as docs/demo.gif, then uncomment:
-![Vault organizer in action](docs/demo.gif)
--->
+<p align="center">
+  <img src="docs/demo.gif" alt="obsidian-vault-mcp linking notes and undoing the change" width="820">
+</p>
 
 A Model Context Protocol (MCP) server for an Obsidian vault, paired with a
 multi-agent organizer that links, tags, and restructures notes on a schedule.
